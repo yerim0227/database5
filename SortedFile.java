@@ -35,8 +35,41 @@ public class SortedFile {
      * @throws IOException If an I/O error occurs during the operation.
      */
     public void insertRecord(Record record) throws IOException {
-        // TODO: Implement this function.
-        return;
+        List<PageInfo> pages = pageDirectory.getPages();
+        for (PageInfo pageInfo : pages) {
+            Page page = readPageFromDisk(pageInfo.getOffset());
+            if (page.getNumberOfRecords() < Page.SLOT_COUNT) {
+                insertIntoPage(page, pageInfo, record);
+                return;
+            }
+        }
+
+        Page newPage = new Page();
+        PageInfo newPageInfo = new PageInfo(getNextPageOffset(), 0);
+        insertIntoPage(newPage, newPageInfo, record);
+        pageDirectory.addPage(newPageInfo);
+        writeDirectoryToDisk();
+    }
+
+    // Add this method within the SortedFile class
+    private long getNextPageOffset() throws IOException {
+        File file = new File(dataFilename);
+        if (!file.exists()) {
+            // If the file does not exist, return 0 as the starting offset
+            return 0;
+        }
+        return file.length();
+    }
+    private void insertIntoPage(Page page, PageInfo pageInfo, Record record) throws IOException {
+        int i;
+        for (i = 0; i < Page.SLOT_COUNT; i++) {
+            if (!page.isSlotUsed(i)) {
+                page.insertRecord(i, record);
+                pageInfo.setFreeSlots(Page.SLOT_COUNT - page.getNumberOfRecords());
+                writePageToDisk(page, pageInfo);
+                return;
+            }
+        }
     }
 
     /**
@@ -47,8 +80,19 @@ public class SortedFile {
      * @throws IOException If an I/O error occurs during the operation.
      */
     public Record searchRecord(int key) throws IOException {
-        // TODO: Implement this function.
-        return null; // Record not found
+        List<PageInfo> pages = pageDirectory.getPages();
+        for (PageInfo pageInfo : pages) {
+            Page page = readPageFromDisk(pageInfo.getOffset());
+            for (int i = 0; i < Page.SLOT_COUNT; i++) {
+                if (page.isSlotUsed(i)) {
+                    Record record = page.getRecord(i);
+                    if (record.getKey() == key) {
+                        return record;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -59,8 +103,22 @@ public class SortedFile {
      * @throws IOException If an I/O error occurs during the operation.
      */
     public boolean deleteRecord(int key) throws IOException {
-        // TODO: Implement this function.
-        return false; // Record not found
+        List<PageInfo> pages = pageDirectory.getPages();
+        for (PageInfo pageInfo : pages) {
+            Page page = readPageFromDisk(pageInfo.getOffset());
+            for (int i = 0; i < Page.SLOT_COUNT; i++) {
+                if (page.isSlotUsed(i)) {
+                    Record record = page.getRecord(i);
+                    if (record.getKey() == key) {
+                        page.deleteRecord(i);
+                        pageInfo.setFreeSlots(Page.SLOT_COUNT - page.getNumberOfRecords());
+                        writePageToDisk(page, pageInfo);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -73,7 +131,18 @@ public class SortedFile {
      */
     public List<Record> rangeSearch(int lowerBound, int upperBound) throws IOException {
         List<Record> result = new ArrayList<>();
-        // TODO: Implement this function.
+        List<PageInfo> pages = pageDirectory.getPages();
+        for (PageInfo pageInfo : pages) {
+            Page page = readPageFromDisk(pageInfo.getOffset());
+            for (int i = 0; i < Page.SLOT_COUNT; i++) {
+                if (page.isSlotUsed(i)) {
+                    Record record = page.getRecord(i);
+                    if (record.getKey() >= lowerBound && record.getKey() <= upperBound) {
+                        result.add(record);
+                    }
+                }
+            }
+        }
         return result;
     }
 
